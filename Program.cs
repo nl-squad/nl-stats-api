@@ -1,44 +1,44 @@
+using MySqlConnector;
+using Nl.Stats.Api.Database;
+using Nl.Stats.Api.Models;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddTransient<IConnectionFactory, ConnectionFactory>(_ => new ConnectionFactory(
+    builder.Configuration.GetConnectionString("Cod2ZomMysql")!
+));
+
 var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
+app.UseSwagger();
+app.UseSwaggerUI();
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+app.MapGet("/get-stats", async (
+    IConnectionFactory connectionFactory,
+    [AsParameters] GetStatsRequest getStatsRequest
+) =>
+    {
+        await using var connection = connectionFactory.GetConnection();
+        await connection.OpenAsync();
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+        using var command = new MySqlCommand("SELECT login, rank, kills FROM cod2_zom_players_view WHERE login = @login", connection);
+        command.Parameters.AddWithValue("@login", getStatsRequest.Login);
+        await using var reader = await command.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+        {
+            return Results.NotFound();
+        }
+
+        var login = reader.GetString(0);
+        var rank = reader.GetInt32(1);
+        var kills = reader.GetInt32(2);
+
+        var response = new GetStatsResponse(login, rank, kills);
+        return Results.Ok(response);
+    }
+).WithOpenApi();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
