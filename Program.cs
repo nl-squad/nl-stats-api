@@ -12,22 +12,23 @@ builder.Services.AddTransient<IConnectionFactory, ConnectionFactory>(_ => new Co
 ));
 
 var app = builder.Build();
+
 app.UseSwagger();
 app.UseSwaggerUI();
-app.UseHttpsRedirection();
 
 app.MapGet("/get-stats", async (
     IConnectionFactory connectionFactory,
-    [AsParameters] GetStatsRequest getStatsRequest
+    [AsParameters] GetStatsRequest getStatsRequest,
+    CancellationToken cancellationToken
 ) =>
     {
         await using var connection = connectionFactory.GetConnection();
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         using var command = new MySqlCommand("SELECT login, rank, kills FROM cod2_zom_players_view WHERE login = @login", connection);
         command.Parameters.AddWithValue("@login", getStatsRequest.Login);
-        await using var reader = await command.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
         {
             return Results.NotFound();
         }
