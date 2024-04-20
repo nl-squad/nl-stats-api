@@ -8,5 +8,5 @@ dotnet user-secrets set "ConnectionStrings:Cod2ZomMysql" "Server=SERVER; Port=PO
 # Run in docker locally
 
 ```sh
-docker-compose -f docker-compose.local.yml up --build
+cd src && docker-compose -f docker-compose.local.yml up --build
 ```
